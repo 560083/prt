@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Payment Tracker</title>
+<meta name="theme-color" content="#0f172a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PT">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#0f172a; --card:#1e293b; --card2:#273449; --text:#e2e8f0; --muted:#94a3b8;
+  --green:#22c55e; --red:#ef4444; --yellow:#f59e0b; --blue:#38bdf8; --purple:#a78bfa;
+  --radius:12px; --shadow:0 2px 10px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+  background:var(--bg); color:var(--text); font-size:14px;
+  max-width:760px; margin:0 auto; padding:0 10px 90px;
+}
+/* ---------- Header ---------- */
+header{
+  position:sticky; top:0; z-index:50; background:var(--bg);
+  padding:10px 2px 8px; display:flex; align-items:center; gap:8px;
+}
+.app-title{font-size:16px; font-weight:700; white-space:nowrap; letter-spacing:.3px}
+.app-title span{color:var(--blue)}
+.app-title img{width:26px;height:26px;border-radius:50%;vertical-align:-6px;margin-right:6px}
+/* expanding search */
+.search-wrap{display:flex; align-items:center; margin-left:auto}
+.search-input{
+  width:0; opacity:0; padding:0; border:1px solid transparent; border-radius:20px;
+  background:var(--card); color:var(--text); font-size:13px; outline:none;
+  transition:width .25s ease, opacity .2s ease, padding .2s ease;
+}
+.search-wrap.open .search-input{width:min(46vw,220px); opacity:1; padding:7px 12px; border-color:#334155}
+.search-btn{
+  width:34px; height:34px; border-radius:50%; border:none; cursor:pointer;
+  background:var(--card); color:var(--muted); font-size:15px; flex:0 0 auto;
+}
+/* icon buttons */
+.icon-btn{
+  width:34px; height:34px; border-radius:50%; border:none; cursor:pointer;
+  font-size:12px; font-weight:800; color:#fff; flex:0 0 auto;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:var(--shadow); transition:transform .12s;
+}
+.icon-btn:active{transform:scale(.88)}
+.b-export{background:var(--blue)} .b-import{background:var(--purple)}
+/* ---------- Tabs ---------- */
+.tabs{display:flex; gap:6px; padding:2px 2px 10px; position:sticky; top:52px; z-index:40; background:var(--bg)}
+.tab{
+  flex:1; padding:6px 0; text-align:center; border-radius:10px;
+  background:var(--card); color:var(--muted); font-weight:700; font-size:12px;
+  cursor:pointer; border:1px solid transparent; white-space:nowrap;
+}
+.tab.active{background:var(--green); color:#052e16; border-color:var(--green)}
+/* ---------- Category chips ---------- */
+.chips{display:flex; gap:6px; padding-bottom:10px; overflow-x:auto; scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  flex:0 0 auto; padding:5px 11px; border-radius:16px; font-size:12px; font-weight:600;
+  background:var(--card); color:var(--muted); cursor:pointer; border:1px solid transparent;
+  white-space:nowrap;
+}
+.chip.active{color:#0f172a}
+/* ---------- Entry cards ---------- */
+.list{display:flex; flex-direction:column; gap:8px}
+.entry{
+  background:var(--card); border-radius:var(--radius); padding:10px 12px;
+  display:flex; align-items:center; gap:10px; border-left:4px solid var(--blue);
+  box-shadow:var(--shadow); animation:pop .18s ease;
+}
+@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.entry.overdue{border-left-color:var(--red)}
+.entry.due-soon{border-left-color:var(--yellow)}
+.entry.ok{border-left-color:var(--green)}
+.e-main{flex:1; min-width:0}
+.e-title{font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.e-meta{font-size:12px; color:var(--muted); margin-top:2px}
+.e-right{display:flex; align-items:center; gap:5px; flex:0 0 auto}
+.e-badge{
+  flex:0 0 auto; text-align:center; border-radius:10px; padding:4px 7px; min-width:56px;
+  font-size:10px; font-weight:700; line-height:1.25;
+}
+.e-badge .d{font-size:15px; display:block}
+.badge-red{background:rgba(239,68,68,.15); color:#fca5a5}
+.badge-yellow{background:rgba(245,158,11,.15); color:#fcd34d}
+.badge-green{background:rgba(34,197,94,.15); color:#86efac}
+.e-actions{display:flex; flex-direction:row; gap:5px}
+.round-btn{
+  width:28px; height:28px; border-radius:50%; border:none; cursor:pointer;
+  color:#fff; font-weight:800; font-size:13px; line-height:1;
+  display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow);
+  transition:transform .12s; flex:0 0 auto;
+}
+.round-btn:active{transform:scale(.85)}
+.b-edit{background:var(--yellow); color:#111} .b-del{background:var(--red)}
+.b-done{background:var(--green); font-size:11px}
+.empty{text-align:center; color:var(--muted); padding:40px 10px; font-size:13px}
+/* ---------- Calendar ---------- */
+.cal-head{display:flex; align-items:center; justify-content:space-between; padding:4px 2px 10px}
+.cal-nav{width:32px;height:32px;border-radius:50%;border:none;background:var(--card);color:var(--text);font-size:15px;cursor:pointer}
+.cal-month{font-weight:700; font-size:15px}
+.cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px}
+.cal-dow{text-align:center; font-size:11px; color:var(--muted); font-weight:700; padding:4px 0}
+.cal-day{
+  aspect-ratio:1; border-radius:10px; background:var(--card); display:flex; flex-direction:column;
+  align-items:center; justify-content:center; font-size:17px; font-weight:600; cursor:pointer; position:relative;
+  border:1px solid transparent;
+}
+.cal-day.other{opacity:.28} .cal-day.today{border-color:var(--blue)}
+.cal-day.sel{border-color:var(--yellow)}
+.dots{display:flex; gap:2px; margin-top:3px; height:6px}
+.dot{width:6px;height:6px;border-radius:50%}
+.cal-detail{margin-top:10px}
+/* ---------- Expenses ---------- */
+.exp-summary{display:flex; justify-content:space-between; background:var(--card2); border-radius:10px; padding:9px 12px; font-size:13px; margin-bottom:8px}
+.month-group{margin-bottom:4px}
+.month-head{display:flex; justify-content:space-between; align-items:center; background:var(--card); border-radius:10px; padding:9px 12px; font-weight:700; font-size:13px; cursor:pointer; border:1px solid #334155; user-select:none}
+.m-total{color:var(--muted); font-weight:600; font-size:12px}
+.month-body{display:flex; flex-direction:column; gap:4px; padding:5px 0 2px 6px}
+.exp-row{display:flex; align-items:center; gap:8px; background:var(--card); border-radius:10px; padding:7px 10px; border-left:3px solid var(--purple)}
+.exp-amt{font-weight:700; font-size:13px; white-space:nowrap}
+/* ---------- FAB ---------- */
+.fab{
+  position:fixed; right:16px; bottom:18px; width:56px; height:56px; border-radius:50%;
+  background:var(--green); color:#fff; font-size:30px; border:none; cursor:pointer;
+  box-shadow:0 4px 16px rgba(34,197,94,.45); z-index:60; transition:transform .15s;
+  display:flex; align-items:center; justify-content:center;
+}
+.fab:active{transform:scale(.88)}
+/* ---------- Modal ---------- */
+.modal-bg{
+  position:fixed; inset:0; background:rgba(2,6,23,.75); z-index:100;
+  display:none; align-items:flex-end; justify-content:center;
+}
+@media(min-width:600px){.modal-bg{align-items:center}}
+.modal-bg.open{display:flex}
+.modal{
+  background:var(--card); width:100%; max-width:480px; border-radius:18px 18px 0 0;
+  padding:18px 16px calc(18px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto;
+  animation:slideup .22s ease;
+}
+@media(min-width:600px){.modal{border-radius:18px}}
+@keyframes slideup{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.modal h2{font-size:16px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center}
+.modal h2 button{background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer}
+.f-row{margin-bottom:12px}
+.f-row label{display:block; font-size:12px; color:var(--muted); margin-bottom:5px; font-weight:600}
+.f-row input,.f-row select{
+  width:100%; padding:10px 12px; border-radius:10px; border:1px solid #334155;
+  background:var(--bg); color:var(--text); font-size:14px; outline:none;
+}
+.f-row input:focus,.f-row select:focus{border-color:var(--blue)}
+.f-2col{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.freq-opts{display:flex; flex-wrap:wrap; gap:6px}
+.freq-chip{padding:7px 12px; border-radius:16px; background:var(--bg); border:1px solid #334155; font-size:12px; cursor:pointer; color:var(--muted)}
+.freq-chip.sel{background:var(--blue); color:#082f49; border-color:var(--blue); font-weight:700}
+.save-btn{
+  width:100%; padding:13px; border:none; border-radius:12px; background:var(--green);
+  color:#fff; font-size:15px; font-weight:700; cursor:pointer; margin-top:4px;
+}
+.danger-btn{
+  width:100%; padding:11px; border:none; border-radius:12px; background:rgba(239,68,68,.12);
+  color:#fca5a5; font-size:13px; font-weight:700; cursor:pointer; margin-top:8px;
+}
+/* toast */
+.toast{
+  position:fixed; left:50%; bottom:90px; transform:translateX(-50%);
+  background:var(--card2); padding:10px 18px; border-radius:22px; font-size:13px;
+  z-index:200; display:none; box-shadow:var(--shadow); border:1px solid #334155; white-space:nowrap;
+}
+@media(max-width:420px){.app-title{font-size:14px}.e-badge{min-width:52px}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="app-title"><img src="icon-192.png" alt="PT">Payment<span>Tracker</span></div>
+  <div class="search-wrap" id="searchWrap">
+    <input class="search-input" id="searchInput" placeholder="Search entries…" autocomplete="off">
+    <button class="search-btn" id="searchBtn" title="Search">🔍</button>
+  </div>
+  <button class="icon-btn b-export" id="btnExport" title="Export JSON">⇩</button>
+  <button class="icon-btn b-import" id="btnImport" title="Import JSON">⇧</button>
+  <input type="file" id="fileImport" accept=".json,application/json" hidden>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="all">📋 All</div>
+  <div class="tab" data-tab="upcoming">⏰ Due</div>
+  <div class="tab" data-tab="calendar">📅 Cal</div>
+  <div class="tab" data-tab="expenses">💸 Exp</div>
+</div>
+
+<div class="chips" id="chips"></div>
+
+<div id="viewUpcoming" class="view"></div>
+<div id="viewAll" class="view"></div>
+<div id="viewCalendar" class="view" style="display:none"></div>
+<div id="viewExpenses" class="view" style="display:none"></div>
+
+<button class="fab" id="fabAdd" title="Add entry">+</button>
+
+<!-- Add / Edit modal -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h2><span id="modalTitle">Add Entry</span><button id="modalClose">×</button></h2>
+    <div class="f-row"><label>Title *</label>
+      <input id="fTitle" placeholder="e.g. Papa Mobile / Water Bill"></div>
+    <div class="f-2col">
+      <div class="f-row"><label>Category</label>
+        <select id="fCat"></select></div>
+      <div class="f-row"><label>Amount (optional)</label>
+        <input id="fAmt" type="number" min="0" placeholder="₹"></div>
+    </div>
+    <div class="f-row" id="newCatRow" style="display:none"><label>New category name</label>
+      <input id="fNewCat" placeholder="e.g. Insurance, Rent"></div>
+    <div class="f-row"><label>Last done / recharge date *</label>
+      <input id="fDate" type="date"></div>
+    <div class="f-row"><label>Repeat every</label>
+      <div class="freq-opts" id="freqOpts">
+        <div class="freq-chip" data-days="28">28 days</div>
+        <div class="freq-chip" data-days="7">Weekly</div>
+        <div class="freq-chip" data-days="30">Monthly</div>
+        <div class="freq-chip" data-days="365">Yearly</div>
+        <div class="freq-chip" data-days="90">90 days</div>
+        <div class="freq-chip" data-days="custom">Custom…</div>
+      </div></div>
+    <div class="f-row" id="customDaysRow" style="display:none"><label>Custom days</label>
+      <input id="fCustom" type="number" min="1" placeholder="e.g. 45"></div>
+    <div class="f-row"><label>Note (optional)</label>
+      <input id="fNote" placeholder="e.g. Jio ₹299 plan"></div>
+    <button class="save-btn" id="btnSave">Save Entry</button>
+    <button class="danger-btn" id="btnDeleteInModal" style="display:none">Delete this entry</button>
+  </div>
+</div>
+
+<!-- Add Expense modal -->
+<div class="modal-bg" id="expModalBg">
+  <div class="modal">
+    <h2><span>Add Expense</span><button id="expModalClose">×</button></h2>
+    <div class="f-row"><label>Name *</label>
+      <input id="xName" placeholder="e.g. Groceries, Petrol"></div>
+    <div class="f-2col">
+      <div class="f-row"><label>Date *</label>
+        <input id="xDate" type="date"></div>
+      <div class="f-row"><label>Amount (₹) *</label>
+        <input id="xAmt" type="number" min="0" step="0.01" placeholder="0"></div>
+    </div>
+    <div class="f-row"><label>Notes (optional)</label>
+      <input id="xNote" placeholder="e.g. weekly vegetables"></div>
+    <button class="save-btn" id="xSave">Save Expense</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= DATA ================= */
+const LS_KEY = 'paymentTracker.entries.v1';
+const LS_CATS = 'paymentTracker.cats.v1';
+const DEFAULT_CATS = [
+  {id:'mobile',  label:'📱 Mobile',    color:'#22c55e'},
+  {id:'dth',     label:'📺 DTH/Net',   color:'#a78bfa'},
+  {id:'utility', label:'💡 Utility',   color:'#f59e0b'},
+  {id:'other',   label:'📦 Other',     color:'#64748b'},
+];
+const CAT_PALETTE = ['#38bdf8','#f472b6','#fb7185','#34d399','#fbbf24','#c084fc','#f97316','#2dd4bf'];
+let cats = loadCats();
+let entries = load();
+let activeTab = 'all', activeCat = 'all', searchQ = '';
+let editId = null, selFreq = 30, calDate = new Date(), calSelDay = null;
+const LS_EXP = 'paymentTracker.expenses.v1';
+let expenses = loadExp();
+let collapsedMonths = new Set(), monthsInit = false;
+function loadExp(){ try{ const d = JSON.parse(localStorage.getItem(LS_EXP)); return Array.isArray(d)? d : []; }catch(e){ return []; } }
+function saveExp(){ localStorage.setItem(LS_EXP, JSON.stringify(expenses)); }
+
+function loadCats(){
+  try{ const d = JSON.parse(localStorage.getItem(LS_CATS));
+    return (Array.isArray(d) && d.length) ? d : DEFAULT_CATS.slice();
+  }catch(e){ return DEFAULT_CATS.slice(); }
+}
+function saveCats(){ localStorage.setItem(LS_CATS, JSON.stringify(cats)); }
+function catById(id){ return cats.find(c => c.id === id); }
+function catColor(id){ const c = catById(id); return c ? c.color : '#64748b'; }
+function catLabel(id){ const c = catById(id); return c ? c.label : '📦'; }
+function addCategory(name){
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || ('cat-'+Date.now());
+  const color = CAT_PALETTE[cats.length % CAT_PALETTE.length];
+  const cat = {id, label:name.trim(), color};
+  cats.push(cat); saveCats(); return cat;
+}
+function load(){
+  try{ const d = JSON.parse(localStorage.getItem(LS_KEY)); return Array.isArray(d)? d : seed(); }
+  catch(e){ return seed(); }
+}
+function seed(){ // demo entries so first open isn't empty
+  const t = Date.now(), d = 86400000;
+  return [
+    {id:uid(), title:'Papa Mobile (Jio)', cat:'mobile', amt:299, last:iso(t-20*d), days:28, note:'₹299 plan', created:t},
+    {id:uid(), title:'Home Water Bill', cat:'utility', amt:'', last:iso(t-11*d), days:30, note:'', created:t},
+    {id:uid(), title:'DTH Tata Sky', cat:'dth', amt:250, last:iso(t-80*d), days:90, note:'', created:t},
+  ];
+}
+function save(){ localStorage.setItem(LS_KEY, JSON.stringify(entries)); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function iso(t){ return new Date(t).toISOString().slice(0,10); }
+function parse(s){ const [y,m,dd] = s.split('-').map(Number); return new Date(y, m-1, dd); }
+function addDays(date, n){ const d = new Date(date); d.setDate(d.getDate()+n); return d; }
+function nextDue(e){ let d = parse(e.last); while(d <= new Date()) d = addDays(d, e.days); return d; }
+function daysLeft(e){ return Math.round((nextDue(e) - new Date()) / 86400000); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ================= FILTER / SORT ================= */
+function filtered(){
+  return entries.filter(e =>
+    (activeCat==='all' || e.cat===activeCat) &&
+    (!searchQ || (e.title+' '+(e.note||'')).toLowerCase().includes(searchQ))
+  );
+}
+function upcomingSorted(){
+  return filtered().slice().sort((a,b)=> nextDue(a) - nextDue(b));
+}
+
+/* ================= RENDER ================= */
+function renderChips(){
+  const chipsEl = document.getElementById('chips');
+  let html = `<div class="chip ${activeCat==='all'?'active':''}" data-cat="all" style="${activeCat==='all'?'background:var(--blue);color:#082f49':''}">All</div>`;
+  html += cats.map(c =>
+    `<div class="chip ${activeCat===c.id?'active':''}" data-cat="${esc(c.id)}" style="${activeCat===c.id?`background:${c.color}`:''}">${esc(c.label)}</div>`
+  ).join('');
+  html += `<div class="chip" data-cat="__new" title="Add custom category" style="border:1px dashed #475569">＋ New</div>`;
+  chipsEl.innerHTML = html;
+}
+function badge(e){
+  const n = daysLeft(e);
+  if(n < 0)  return `<div class="e-badge badge-red"><span class="d">${-n}d</span>overdue</div>`;
+  if(n <= 2) return `<div class="e-badge badge-yellow"><span class="d">${n}d</span>left</div>`;
+  return `<div class="e-badge badge-green"><span class="d">${n}d</span>left</div>`;
+}
+function rowClass(e){
+  const n = daysLeft(e);
+  return n < 0 ? 'overdue' : n <= 2 ? 'due-soon' : 'ok';
+}
+function entryHTML(e){
+  const due = nextDue(e);
+  const dueStr = due.toLocaleDateString(undefined,{day:'numeric',month:'short'});
+  const meta = `${catLabel(e.cat)} every ${e.days}d · last ${parse(e.last).toLocaleDateString(undefined,{day:'numeric',month:'short'})}` +
+    ` · next <b>${dueStr}</b>` + (e.amt?` · ₹${esc(e.amt)}`:'') + (e.note?` · ${esc(e.note)}`:'');
+  return `<div class="entry ${rowClass(e)}">
+    <div class="e-main">
+      <div class="e-title">${esc(e.title)}</div>
+      <div class="e-meta">${meta}</div>
+    </div>
+    <div class="e-right">
+      ${badge(e)}
+      <div class="e-actions">
+        <button class="round-btn b-done" data-done="${e.id}" title="Mark done today">✓</button>
+        <button class="round-btn b-edit" data-edit="${e.id}" title="Edit">E</button>
+        <button class="round-btn b-del" data-del="${e.id}" title="Delete">−</button>
+      </div>
+    </div>
+  </div>`;
+}
+function emptyHTML(msg){
+  return `<div class="empty">${msg}<br><br>Tap the green <b>+</b> button to add one.</div>`;
+}
+
+function render(){
+  renderChips();
+  const up = document.getElementById('viewUpcoming');
+  const al = document.getElementById('viewAll');
+  const cal = document.getElementById('viewCalendar');
+  const list = upcomingSorted();
+
+  // Upcoming: overdue + anything due within 7 days, else nearest ones
+  const near = list.filter(e => daysLeft(e) <= 7);
+  const show = (near.length ? near : list).slice(0, 30);
+  up.innerHTML = show.length ? `<div class="list">${show.map(entryHTML).join('')}</div>`
+    : emptyHTML('No reminders here yet.');
+  al.innerHTML = list.length ? `<div class="list">${list.map(entryHTML).join('')}</div>`
+    : emptyHTML(searchQ ? 'No matches for your search.' : 'No entries yet.');
+
+  renderCalendar();
+  cal.style.display = activeTab==='calendar' ? '' : 'none';
+  up.style.display = activeTab==='upcoming' ? '' : 'none';
+  al.style.display = activeTab==='all' ? '' : 'none';
+  renderExpenses();
+  document.getElementById('viewExpenses').style.display = activeTab==='expenses' ? '' : 'none';
+}
+
+/* ================= CALENDAR ================= */
+document.getElementById('viewCalendar').innerHTML = `
+  <div class="cal-head">
+    <button class="cal-nav" id="calPrev">‹</button>
+    <div class="cal-month" id="calMonthLabel"></div>
+    <button class="cal-nav" id="calNext">›</button>
+  </div>
+  <div class="cal-grid" id="calGrid"></div>
+  <div id="calDetail"></div>`;
+function renderCalendar(){
+  const y = calDate.getFullYear(), m = calDate.getMonth();
+  document.getElementById('calMonthLabel').textContent =
+    calDate.toLocaleDateString(undefined,{month:'long', year:'numeric'});
+  const first = new Date(y, m, 1).getDay();
+  const daysIn = new Date(y, m+1, 0).getDate();
+  const prevDays = new Date(y, m, 0).getDate();
+  let html = ['S','M','T','W','T','F','S'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  const today = iso(Date.now());
+  const byDay = {};
+  entries.forEach(e => { // mark next due date
+    const d = iso(nextDue(e)); (byDay[d] = byDay[d] || []).push(e);
+  });
+  for(let i=0;i<first;i++)
+    html += `<div class="cal-day other">${prevDays-first+1+i}</div>`;
+  for(let d=1; d<=daysIn; d++){
+    const key = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dots = (byDay[key]||[]).slice(0,3).map(e=>`<div class="dot" style="background:${catColor(e.cat)}"></div>`).join('');
+    const cls = ['cal-day', key===today?'today':'', key===calSelDay?'sel':''].join(' ');
+    html += `<div class="${cls}" data-day="${key}">${d}<div class="dots">${dots}</div></div>`;
+  }
+  const total = first + daysIn, rem = (7 - total % 7) % 7;
+  for(let i=1;i<=rem;i++) html += `<div class="cal-day other">${i}</div>`;
+  document.getElementById('calGrid').innerHTML = html;
+
+  // detail panel for selected day
+  const det = document.getElementById('calDetail');
+  if(calSelDay && byDay[calSelDay]){
+    det.innerHTML = `<div class="cal-detail list">${byDay[calSelDay].map(entryHTML).join('')}</div>`;
+  } else det.innerHTML = '';
+}
+
+/* ================= MODAL ================= */
+const modalBg = document.getElementById('modalBg');
+function fillCatSelect(selected){
+  fCat.innerHTML = cats.map(c=>`<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('')
+    + `<option value="__new">＋ New category…</option>`;
+  fCat.value = catById(selected) ? selected : 'other';
+  document.getElementById('newCatRow').style.display = 'none';
+  fNewCat.value = '';
+}
+fCat.addEventListener('change', ()=>{
+  const show = fCat.value === '__new';
+  document.getElementById('newCatRow').style.display = show ? '' : 'none';
+  if(show) fNewCat.focus();
+});
+function openModal(id){
+  editId = id || null;
+  document.getElementById('modalTitle').textContent = id ? 'Edit Entry' : 'Add Entry';
+  document.getElementById('btnDeleteInModal').style.display = id ? '' : 'none';
+  if(id){
+    const e = entries.find(x=>x.id===id); if(!e) return;
+    fillCatSelect(e.cat);
+    fTitle.value = e.title; fAmt.value = e.amt; fDate.value = e.last;
+    fNote.value = e.note||''; setFreq(e.days);
+  } else {
+    fillCatSelect(activeCat !== 'all' ? activeCat : 'mobile');
+    fTitle.value=''; fAmt.value=''; fNote.value=''; fDate.value = iso(Date.now()); setFreq(28);
+  }
+  modalBg.classList.add('open');
+}
+function closeModal(){ modalBg.classList.remove('open'); }
+function setFreq(days){
+  selFreq = days;
+  document.querySelectorAll('#freqOpts .freq-chip').forEach(c=>{
+    c.classList.toggle('sel', Number(c.dataset.days) === Number(days));
+  });
+  document.getElementById('customDaysRow').style.display =
+    (days==='custom' || !chipExists(days)) ? '' : 'none';
+  if(days==='custom'){ fCustom.value = fCustom.value || 45; }
+  else if(!chipExists(days)){ fCustom.value = days; }
+}
+function chipExists(days){
+  return [...document.querySelectorAll('#freqOpts .freq-chip')].some(c=>Number(c.dataset.days)===Number(days));
+}
+function currentFreq(){
+  if(selFreq==='custom' || !chipExists(selFreq)){
+    const v = parseInt(fCustom.value,10);
+    return v>0 ? v : 30;
+  }
+  return Number(selFreq);
+}
+document.getElementById('freqOpts').addEventListener('click', e=>{
+  const chip = e.target.closest('.freq-chip'); if(!chip) return;
+  setFreq(chip.dataset.days==='custom' ? 'custom' : Number(chip.dataset.days));
+});
+document.getElementById('btnSave').onclick = ()=>{
+  const title = fTitle.value.trim();
+  const last = fDate.value;
+  if(!title){ toast('Please enter a title'); return; }
+  if(!last){ toast('Please pick a date'); return; }
+  const days = currentFreq();
+  let catId = fCat.value;
+  if(catId === '__new'){
+    const name = fNewCat.value.trim();
+    if(!name){ toast('Please type the new category name'); return; }
+    catId = addCategory(name).id;
+  }
+  if(editId){
+    const e = entries.find(x=>x.id===editId);
+    Object.assign(e, {title, cat:catId, amt:fAmt.value, last, days, note:fNote.value.trim()});
+    toast('Entry updated ✓');
+  } else {
+    entries.push({id:uid(), title, cat:catId, amt:fAmt.value, last, days, note:fNote.value.trim(), created:Date.now()});
+    toast('Entry added ✓');
+  }
+  save(); closeModal(); render();
+};
+document.getElementById('btnDeleteInModal').onclick = ()=>{
+  if(editId && confirm('Delete this entry?')){ entries = entries.filter(x=>x.id!==editId); save(); closeModal(); render(); toast('Deleted'); }
+};
+document.getElementById('modalClose').onclick = closeModal;
+modalBg.addEventListener('click', e=>{ if(e.target===modalBg) closeModal(); });
+
+/* ================= EVENTS ================= */
+document.getElementById('fabAdd').onclick = ()=> activeTab==='expenses' ? openExpModal() : openModal();
+document.querySelector('.tabs').addEventListener('click', e=>{
+  const t = e.target.closest('.tab'); if(!t) return;
+  activeTab = t.dataset.tab;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x===t));
+  render();
+});
+document.getElementById('chips').addEventListener('click', e=>{
+  const c = e.target.closest('.chip'); if(!c) return;
+  if(c.dataset.cat === '__new'){
+    const name = prompt('New category name (e.g. Insurance, Rent, Gym):');
+    if(name && name.trim()){
+      const cat = addCategory(name.trim());
+      activeCat = cat.id; render(); toast(`Category "${cat.label}" added ✓`);
+    }
+    return;
+  }
+  activeCat = c.dataset.cat;
+  render();
+});
+// search expand
+const sw = document.getElementById('searchWrap'), si = document.getElementById('searchInput');
+document.getElementById('searchBtn').onclick = ()=>{
+  if(sw.classList.contains('open')){
+    if(si.value){ si.value=''; searchQ=''; render(); }
+    sw.classList.remove('open');
+  } else { sw.classList.add('open'); si.focus(); }
+};
+si.addEventListener('input', ()=>{ searchQ = si.value.trim().toLowerCase(); render(); });
+si.addEventListener('blur', ()=>{ if(!si.value) sw.classList.remove('open'); });
+
+// calendar nav
+document.getElementById('calPrev').onclick = ()=>{ calDate.setMonth(calDate.getMonth()-1); render(); };
+document.getElementById('calNext').onclick = ()=>{ calDate.setMonth(calDate.getMonth()+1); render(); };
+document.getElementById('calGrid').addEventListener('click', e=>{
+  const d = e.target.closest('.cal-day'); if(!d || !d.dataset.day) return;
+  calSelDay = calSelDay === d.dataset.day ? null : d.dataset.day;
+  render();
+});
+
+// entry actions (delegated)
+document.body.addEventListener('click', e=>{
+  const done = e.target.closest('[data-done]');
+  const edit = e.target.closest('[data-edit]');
+  const del  = e.target.closest('[data-del]');
+  if(done){ const en = entries.find(x=>x.id===done.dataset.done);
+    en.last = iso(Date.now()); save(); render(); toast('Marked done — next due in '+en.days+' days ✓'); }
+  else if(edit){ openModal(edit.dataset.edit); }
+  else if(del){
+    const en = entries.find(x=>x.id===del.dataset.del);
+    if(confirm(`Delete "${en.title}"?`)){ entries = entries.filter(x=>x.id!==en.id); save(); render(); toast('Deleted'); }
+  }
+});
+
+/* ================= EXPENSES ================= */
+function fmt(n){ return '₹' + Number(n||0).toLocaleString('en-IN'); }
+function renderExpenses(){
+  const el = document.getElementById('viewExpenses');
+  if(!expenses.length){ el.innerHTML = emptyHTML('No expenses yet.'); return; }
+  const groups = {};
+  expenses.forEach(x => { const k = x.date.slice(0,7); (groups[k] = groups[k]||[]).push(x); });
+  const keys = Object.keys(groups).sort().reverse();
+  if(!monthsInit){ // expand current month only, collapse the rest
+    monthsInit = true;
+    const nowK = iso(Date.now()).slice(0,7);
+    keys.forEach(k => { if(k !== nowK) collapsedMonths.add(k); });
+  }
+  const curK = iso(Date.now()).slice(0,7);
+  const curTotal = (groups[curK]||[]).reduce((s,x)=>s + (+x.amt||0), 0);
+  const allTotal = expenses.reduce((s,x)=>s + (+x.amt||0), 0);
+  let html = `<div class="exp-summary"><span>📅 This month: <b>${fmt(curTotal)}</b></span><span>Σ All: <b>${fmt(allTotal)}</b></span></div><div class="list">`;
+  keys.forEach(k => {
+    const items = groups[k].slice().sort((a,b)=> b.date.localeCompare(a.date));
+    const total = items.reduce((s,x)=>s + (+x.amt||0), 0);
+    const open = !collapsedMonths.has(k);
+    const label = new Date(+k.slice(0,4), +k.slice(5,7)-1, 1).toLocaleDateString(undefined,{month:'long', year:'numeric'});
+    html += `<div class="month-group">
+      <div class="month-head" data-month="${k}"><span>${open?'▾':'▸'} ${label}</span><span class="m-total">${fmt(total)} · ${items.length}</span></div>
+      <div class="month-body" style="display:${open?'':'none'}">` +
+      items.map(x => `<div class="exp-row">
+        <div class="e-main">
+          <div class="e-title">${esc(x.name)}</div>
+          <div class="e-meta">${parse(x.date).toLocaleDateString(undefined,{day:'numeric',month:'short'})}${x.note?` · ${esc(x.note)}`:''}</div>
+        </div>
+        <div class="exp-amt">${fmt(x.amt)}</div>
+        <button class="round-btn b-del" data-expdel="${x.id}" title="Delete">−</button>
+      </div>`).join('') +
+      `</div></div>`;
+  });
+  el.innerHTML = html + '</div>';
+}
+document.getElementById('viewExpenses').addEventListener('click', e=>{
+  const h = e.target.closest('.month-head');
+  if(h){
+    const k = h.dataset.month;
+    collapsedMonths.has(k) ? collapsedMonths.delete(k) : collapsedMonths.add(k);
+    renderExpenses(); return;
+  }
+  const del = e.target.closest('[data-expdel]');
+  if(del){
+    const x = expenses.find(v=>v.id===del.dataset.expdel);
+    if(x && confirm(`Delete expense "${x.name}" (${fmt(x.amt)})?`)){
+      expenses = expenses.filter(v=>v.id!==x.id); saveExp(); renderExpenses(); toast('Deleted');
+    }
+  }
+});
+const expModalBg = document.getElementById('expModalBg');
+function openExpModal(){
+  xName.value=''; xAmt.value=''; xNote.value=''; xDate.value = iso(Date.now());
+  expModalBg.classList.add('open');
+  setTimeout(()=>xName.focus(), 150);
+}
+document.getElementById('expModalClose').onclick = ()=> expModalBg.classList.remove('open');
+expModalBg.addEventListener('click', e=>{ if(e.target===expModalBg) expModalBg.classList.remove('open'); });
+document.getElementById('xSave').onclick = ()=>{
+  const name = xName.value.trim(), amt = parseFloat(xAmt.value), date = xDate.value;
+  if(!name){ toast('Please enter a name'); return; }
+  if(!(amt > 0)){ toast('Please enter the amount'); return; }
+  if(!date){ toast('Please pick a date'); return; }
+  expenses.push({id:uid(), name, date, amt, note:xNote.value.trim()});
+  saveExp(); renderExpenses(); expModalBg.classList.remove('open'); toast('Expense added ✓');
+};
+
+/* ================= EXPORT / IMPORT ================= */
+document.getElementById('btnExport').onclick = ()=>{
+  const payload = {app:'payment-tracker', version:1, exported:iso(Date.now()), categories:cats, entries, expenses};
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'payment-tracker-' + iso(Date.now()) + '.json';
+  a.click(); URL.revokeObjectURL(a.href); toast('Exported JSON ⇩');
+};
+document.getElementById('btnImport').onclick = ()=> document.getElementById('fileImport').click();
+document.getElementById('fileImport').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const d = JSON.parse(r.result);
+      const arr = Array.isArray(d) ? d : d.entries;          // old flat-array format still works
+      if(!Array.isArray(arr)) throw 0;
+      if(Array.isArray(d.categories) && d.categories.length){
+        const known = new Set(cats.map(c=>c.id));
+        d.categories.forEach(c=>{ if(c && c.id && c.label && !known.has(c.id)) cats.push({id:c.id, label:c.label, color:c.color || CAT_PALETTE[cats.length % CAT_PALETTE.length]}); });
+        saveCats();
+      }
+      const clean = arr.filter(x=>x && x.title && x.last && x.days>0)
+        .map(x=>({id:x.id||uid(), title:String(x.title), cat:x.cat||'other', amt:x.amt||'', last:String(x.last), days:+x.days, note:x.note||'', created:x.created||Date.now()}));
+      if(!clean.length) throw 0;
+      if(confirm(`Import ${clean.length} entries? This replaces current data.`)){
+        entries = clean; save();
+        if(Array.isArray(d.expenses)){
+          expenses = d.expenses.filter(x=>x && x.name && x.date && +x.amt>0)
+            .map(x=>({id:x.id||uid(), name:String(x.name), date:String(x.date), amt:+x.amt, note:x.note||''}));
+          saveExp(); monthsInit = false; collapsedMonths = new Set();
+        }
+        render(); toast(`Imported ${clean.length} entries ✓`);
+      }
+    }catch(_){ toast('Invalid JSON file'); }
+    e.target.value = '';
+  };
+  r.readAsText(f);
+});
+
+/* ================= MISC ================= */
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(()=> t.style.display='none', 2200);
+}
+// keyboard shortcut: Ctrl/Cmd+K focuses search
+document.addEventListener('keydown', e=>{
+  if((e.ctrlKey||e.metaKey) && e.key==='k'){ e.preventDefault(); sw.classList.add('open'); si.focus(); }
+  if(e.key==='Escape'){ closeModal(); sw.classList.remove('open'); si.blur(); }
+});
+render();
+
+// PWA: register service worker for offline use + install prompt
+if('serviceWorker' in navigator && location.protocol !== 'file:'){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
