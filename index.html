@@ -55,22 +55,13 @@ header{
 .icon-btn:active{transform:scale(.88)}
 .b-export{background:var(--blue)} .b-import{background:var(--purple)}
 /* ---------- Tabs ---------- */
-.tabs{display:flex; gap:6px; padding:2px 2px 10px; position:sticky; top:52px; z-index:40; background:var(--bg)}
+.tabs{display:flex; gap:5px; padding:2px 2px 10px; position:sticky; top:52px; z-index:40; background:var(--bg)}
 .tab{
   flex:1; padding:6px 0; text-align:center; border-radius:10px;
   background:var(--card); color:var(--muted); font-weight:700; font-size:12px;
   cursor:pointer; border:1px solid transparent; white-space:nowrap;
 }
 .tab.active{background:var(--green); color:#052e16; border-color:var(--green)}
-/* ---------- Category chips ---------- */
-.chips{display:flex; gap:6px; padding-bottom:10px; overflow-x:auto; scrollbar-width:none}
-.chips::-webkit-scrollbar{display:none}
-.chip{
-  flex:0 0 auto; padding:5px 11px; border-radius:16px; font-size:12px; font-weight:600;
-  background:var(--card); color:var(--muted); cursor:pointer; border:1px solid transparent;
-  white-space:nowrap;
-}
-.chip.active{color:#0f172a}
 /* ---------- Entry cards ---------- */
 .list{display:flex; flex-direction:column; gap:8px}
 .entry{
@@ -180,6 +171,7 @@ header{
 }
 @media(max-width:420px){.app-title{font-size:14px}.e-badge{min-width:52px}}
 </style>
+<base target="_blank">
 </head>
 <body>
 
@@ -198,19 +190,19 @@ header{
   <div class="tab active" data-tab="all">📋 All</div>
   <div class="tab" data-tab="upcoming">⏰ Due</div>
   <div class="tab" data-tab="calendar">📅 Cal</div>
+  <div class="tab" data-tab="todo">📝 Todo</div>
   <div class="tab" data-tab="expenses">💸 Exp</div>
 </div>
-
-<div class="chips" id="chips"></div>
 
 <div id="viewUpcoming" class="view"></div>
 <div id="viewAll" class="view"></div>
 <div id="viewCalendar" class="view" style="display:none"></div>
+<div id="viewTodo" class="view" style="display:none"></div>
 <div id="viewExpenses" class="view" style="display:none"></div>
 
 <button class="fab" id="fabAdd" title="Add entry">+</button>
 
-<!-- Add / Edit modal -->
+<!-- Add / Edit payment modal -->
 <div class="modal-bg" id="modalBg">
   <div class="modal">
     <h2><span id="modalTitle">Add Entry</span><button id="modalClose">×</button></h2>
@@ -268,6 +260,7 @@ header{
 /* ================= DATA ================= */
 const LS_KEY = 'paymentTracker.entries.v1';
 const LS_CATS = 'paymentTracker.cats.v1';
+const LS_EXP = 'paymentTracker.expenses.v1';
 const DEFAULT_CATS = [
   {id:'mobile',  label:'📱 Mobile',    color:'#22c55e'},
   {id:'dth',     label:'📺 DTH/Net',   color:'#a78bfa'},
@@ -277,13 +270,10 @@ const DEFAULT_CATS = [
 const CAT_PALETTE = ['#38bdf8','#f472b6','#fb7185','#34d399','#fbbf24','#c084fc','#f97316','#2dd4bf'];
 let cats = loadCats();
 let entries = load();
-let activeTab = 'all', activeCat = 'all', searchQ = '';
-let editId = null, selFreq = 30, calDate = new Date(), calSelDay = null;
-const LS_EXP = 'paymentTracker.expenses.v1';
 let expenses = loadExp();
+let activeTab = 'all', searchQ = '';
+let editId = null, selFreq = 30, calDate = new Date(), calSelDay = null;
 let collapsedMonths = new Set(), monthsInit = false;
-function loadExp(){ try{ const d = JSON.parse(localStorage.getItem(LS_EXP)); return Array.isArray(d)? d : []; }catch(e){ return []; } }
-function saveExp(){ localStorage.setItem(LS_EXP, JSON.stringify(expenses)); }
 
 function loadCats(){
   try{ const d = JSON.parse(localStorage.getItem(LS_CATS));
@@ -313,35 +303,27 @@ function seed(){ // demo entries so first open isn't empty
   ];
 }
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify(entries)); }
+function loadExp(){ try{ const d = JSON.parse(localStorage.getItem(LS_EXP)); return Array.isArray(d)? d : []; }catch(e){ return []; } }
+function saveExp(){ localStorage.setItem(LS_EXP, JSON.stringify(expenses)); }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function iso(t){ return new Date(t).toISOString().slice(0,10); }
 function parse(s){ const [y,m,dd] = s.split('-').map(Number); return new Date(y, m-1, dd); }
 function addDays(date, n){ const d = new Date(date); d.setDate(d.getDate()+n); return d; }
-function nextDue(e){ let d = parse(e.last); while(d <= new Date()) d = addDays(d, e.days); return d; }
-function daysLeft(e){ return Math.round((nextDue(e) - new Date()) / 86400000); }
+// The single next due date after "last". If it is in the past, the payment is PENDING
+// (not marked done) and stays pinned at that date — it does NOT roll forward silently.
+function dueDate(e){ return addDays(parse(e.last), e.days); }
+function daysLeft(e){ return Math.round((dueDate(e) - new Date()) / 86400000); }
 function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ================= FILTER / SORT ================= */
-function filtered(){
-  return entries.filter(e =>
-    (activeCat==='all' || e.cat===activeCat) &&
-    (!searchQ || (e.title+' '+(e.note||'')).toLowerCase().includes(searchQ))
-  );
+function matches(e){
+  return !searchQ || (e.title+' '+(e.note||'')).toLowerCase().includes(searchQ);
 }
 function upcomingSorted(){
-  return filtered().slice().sort((a,b)=> nextDue(a) - nextDue(b));
+  return entries.filter(matches).slice().sort((a,b)=> dueDate(a) - dueDate(b));
 }
 
 /* ================= RENDER ================= */
-function renderChips(){
-  const chipsEl = document.getElementById('chips');
-  let html = `<div class="chip ${activeCat==='all'?'active':''}" data-cat="all" style="${activeCat==='all'?'background:var(--blue);color:#082f49':''}">All</div>`;
-  html += cats.map(c =>
-    `<div class="chip ${activeCat===c.id?'active':''}" data-cat="${esc(c.id)}" style="${activeCat===c.id?`background:${c.color}`:''}">${esc(c.label)}</div>`
-  ).join('');
-  html += `<div class="chip" data-cat="__new" title="Add custom category" style="border:1px dashed #475569">＋ New</div>`;
-  chipsEl.innerHTML = html;
-}
 function badge(e){
   const n = daysLeft(e);
   if(n < 0)  return `<div class="e-badge badge-red"><span class="d">${-n}d</span>overdue</div>`;
@@ -353,7 +335,7 @@ function rowClass(e){
   return n < 0 ? 'overdue' : n <= 2 ? 'due-soon' : 'ok';
 }
 function entryHTML(e){
-  const due = nextDue(e);
+  const due = dueDate(e);
   const dueStr = due.toLocaleDateString(undefined,{day:'numeric',month:'short'});
   const meta = `${catLabel(e.cat)} every ${e.days}d · last ${parse(e.last).toLocaleDateString(undefined,{day:'numeric',month:'short'})}` +
     ` · next <b>${dueStr}</b>` + (e.amt?` · ₹${esc(e.amt)}`:'') + (e.note?` · ${esc(e.note)}`:'');
@@ -373,30 +355,39 @@ function entryHTML(e){
   </div>`;
 }
 function emptyHTML(msg){
-  return `<div class="empty">${msg}<br><br>Tap the green <b>+</b> button to add one.</div>`;
+  return `<div class="empty">${msg}</div>`;
 }
 
 function render(){
-  renderChips();
   const up = document.getElementById('viewUpcoming');
   const al = document.getElementById('viewAll');
   const cal = document.getElementById('viewCalendar');
+  const td = document.getElementById('viewTodo');
+  const exp = document.getElementById('viewExpenses');
   const list = upcomingSorted();
 
-  // Upcoming: overdue + anything due within 7 days, else nearest ones
+  // All Entries
+  al.innerHTML = list.length ? `<div class="list">${list.map(entryHTML).join('')}</div>`
+    : emptyHTML(searchQ ? 'No matches for your search.' : 'No entries yet.<br><br>Tap the green <b>+</b> button to add one.');
+
+  // Upcoming (Due): overdue + anything due within 7 days, else nearest ones
   const near = list.filter(e => daysLeft(e) <= 7);
   const show = (near.length ? near : list).slice(0, 30);
   up.innerHTML = show.length ? `<div class="list">${show.map(entryHTML).join('')}</div>`
-    : emptyHTML('No reminders here yet.');
-  al.innerHTML = list.length ? `<div class="list">${list.map(entryHTML).join('')}</div>`
-    : emptyHTML(searchQ ? 'No matches for your search.' : 'No entries yet.');
+    : emptyHTML('Nothing due soon.');
+
+  // Todo (Pending): due today or earlier and not marked done — oldest first
+  const pend = list.filter(e => daysLeft(e) <= 0);
+  td.innerHTML = pend.length ? `<div class="list">${pend.map(entryHTML).join('')}</div>`
+    : emptyHTML('Nothing pending — all caught up! 🎉<br><br>Missed payments will appear here.');
 
   renderCalendar();
+  renderExpenses();
   cal.style.display = activeTab==='calendar' ? '' : 'none';
   up.style.display = activeTab==='upcoming' ? '' : 'none';
   al.style.display = activeTab==='all' ? '' : 'none';
-  renderExpenses();
-  document.getElementById('viewExpenses').style.display = activeTab==='expenses' ? '' : 'none';
+  td.style.display = activeTab==='todo' ? '' : 'none';
+  exp.style.display = activeTab==='expenses' ? '' : 'none';
 }
 
 /* ================= CALENDAR ================= */
@@ -418,8 +409,8 @@ function renderCalendar(){
   let html = ['S','M','T','W','T','F','S'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
   const today = iso(Date.now());
   const byDay = {};
-  entries.forEach(e => { // mark next due date
-    const d = iso(nextDue(e)); (byDay[d] = byDay[d] || []).push(e);
+  entries.forEach(e => { // pending/future due date stays pinned — past months show missed payments
+    const d = iso(dueDate(e)); (byDay[d] = byDay[d] || []).push(e);
   });
   for(let i=0;i<first;i++)
     html += `<div class="cal-day other">${prevDays-first+1+i}</div>`;
@@ -445,7 +436,7 @@ const modalBg = document.getElementById('modalBg');
 function fillCatSelect(selected){
   fCat.innerHTML = cats.map(c=>`<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('')
     + `<option value="__new">＋ New category…</option>`;
-  fCat.value = catById(selected) ? selected : 'other';
+  fCat.value = catById(selected) ? selected : 'mobile';
   document.getElementById('newCatRow').style.display = 'none';
   fNewCat.value = '';
 }
@@ -464,7 +455,7 @@ function openModal(id){
     fTitle.value = e.title; fAmt.value = e.amt; fDate.value = e.last;
     fNote.value = e.note||''; setFreq(e.days);
   } else {
-    fillCatSelect(activeCat !== 'all' ? activeCat : 'mobile');
+    fillCatSelect('mobile');
     fTitle.value=''; fAmt.value=''; fNote.value=''; fDate.value = iso(Date.now()); setFreq(28);
   }
   modalBg.classList.add('open');
@@ -530,19 +521,6 @@ document.querySelector('.tabs').addEventListener('click', e=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x===t));
   render();
 });
-document.getElementById('chips').addEventListener('click', e=>{
-  const c = e.target.closest('.chip'); if(!c) return;
-  if(c.dataset.cat === '__new'){
-    const name = prompt('New category name (e.g. Insurance, Rent, Gym):');
-    if(name && name.trim()){
-      const cat = addCategory(name.trim());
-      activeCat = cat.id; render(); toast(`Category "${cat.label}" added ✓`);
-    }
-    return;
-  }
-  activeCat = c.dataset.cat;
-  render();
-});
 // search expand
 const sw = document.getElementById('searchWrap'), si = document.getElementById('searchInput');
 document.getElementById('searchBtn').onclick = ()=>{
@@ -581,7 +559,7 @@ document.body.addEventListener('click', e=>{
 function fmt(n){ return '₹' + Number(n||0).toLocaleString('en-IN'); }
 function renderExpenses(){
   const el = document.getElementById('viewExpenses');
-  if(!expenses.length){ el.innerHTML = emptyHTML('No expenses yet.'); return; }
+  if(!expenses.length){ el.innerHTML = emptyHTML('No expenses yet.<br><br>Tap the green <b>+</b> button to add one.'); return; }
   const groups = {};
   expenses.forEach(x => { const k = x.date.slice(0,7); (groups[k] = groups[k]||[]).push(x); });
   const keys = Object.keys(groups).sort().reverse();
@@ -696,7 +674,7 @@ function toast(msg){
 // keyboard shortcut: Ctrl/Cmd+K focuses search
 document.addEventListener('keydown', e=>{
   if((e.ctrlKey||e.metaKey) && e.key==='k'){ e.preventDefault(); sw.classList.add('open'); si.focus(); }
-  if(e.key==='Escape'){ closeModal(); sw.classList.remove('open'); si.blur(); }
+  if(e.key==='Escape'){ closeModal(); expModalBg.classList.remove('open'); sw.classList.remove('open'); si.blur(); }
 });
 render();
 
